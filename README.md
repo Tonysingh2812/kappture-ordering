@@ -65,6 +65,7 @@ _More to come._
 | Each webhook is processed in **its own transaction**, including the delivery record | Shared batch or queue | One bad or failing event can never block or corrupt another order's processing; a rollback means the retry starts fresh | No batching |
 | Unauthenticated webhooks are **not stored** | Store everything | Stops anyone filling the dead-letter store | A misconfigured secret loses evidence (the 401s are visible in logs) |
 | HMAC-SHA256 over the raw body, compared in constant time | Verify the re-serialised JSON | Re-serialising can change bytes and break valid signatures | The webhook route needs its own body parser |
+| Review flags are a **non-blocking queue** (`GET /review`, `POST /review/:id/resolve`), showing order and payment context | Block the order until a human approves it | Matches the agreed priority: the sale goes through, and unusual cases still get human eyes | Someone has to work the queue; an unworked queue means refunds are missed (needs alerting in production) |
 | Vitest | Jest | Native TS/ESM, fast | None significant |
 | Transition rules live in one pure function (`src/domain/payment-events.ts`) returning a decision (`applied` / `duplicate` / `stale` / `rejected` + review flags) | Rules spread across services/handlers; throwing on invalid transitions | One place to reason about and test exhaustively (every state × event); expected business cases are data, not exceptions | Services must persist the decision faithfully |
 | Payments only move forward (Initiated → Authorised → Captured); backwards events are recorded as `stale` and ignored | Re-sequencing/buffering events by provider sequence number | No reliance on the provider ordering or on missing events ever arriving; simple and deterministic | We discard information from stale events (they are still stored for audit) |
@@ -84,6 +85,8 @@ _TBD_
 - **Single payment per order at a time.** No split bills or partial payments.
 - **Webhook signatures have no timestamp,** so a captured request could be replayed. Replays are harmless here (deduplicated on `eventId`), but production should use timestamped signatures with a tolerance window.
 - **A schema-invalid event followed by a corrected event with the *same* `eventId`** would treat the second as a duplicate. Real providers resend identical payloads per event.
+- **No order cancellation endpoint.** The `Cancelled` state and its rules exist in the domain (e.g. a capture on a cancelled order is flagged for refund), but cancelling is out of scope.
+- **The review queue has no authentication or "resolved by" audit.** Resolving is just a timestamp.
 - **Event payload contract is assumed:** `{ eventId, type, paymentId (our reference), providerPaymentId?, amountMinor?, currency?, occurredAt? }`. A real provider's format would be mapped to this in an adapter.
 
 _More to come._

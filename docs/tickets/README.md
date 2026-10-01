@@ -17,7 +17,7 @@ Work is split into tickets so progress is easy to track and each one lands as it
 | [KAP-03](KAP-03-create-order.md) | Create/get order API with idempotent submission | Done |
 | [KAP-04](KAP-04-initiate-payment.md) | Payment initiation, provider port and uncertain outcomes | Done |
 | [KAP-05](KAP-05-webhook-processing.md) | Payment webhook: verification, dedupe and isolation | Done |
-| [KAP-06](KAP-06-out-of-order-and-review.md) | Out-of-order events, early capture and review flags | To do |
+| [KAP-06](KAP-06-out-of-order-and-review.md) | Out-of-order events, early capture and review flags | Done |
 | [KAP-07](KAP-07-completion-and-listing.md) | Order completion and transaction/state listing | To do |
 | [KAP-08](KAP-08-reconciliation.md) | Reconciliation of stuck payments (stretch) | To do |
 | [KAP-11](KAP-11-device-session-id.md) | Device/session ID: idempotency scoping and soft duplicate detection | To do |

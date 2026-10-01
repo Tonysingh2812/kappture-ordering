@@ -1,6 +1,6 @@
 # KAP-06: Out-of-order events, early capture and review flags
 
-**Status:** To do
+**Status:** Done
 
 ## Goal
 Implement and prove the deliberate out-of-order policy and the agreed answer to the key scenario.
@@ -39,3 +39,16 @@ Listed for before production: confirm with the provider's API, or reconcile asyn
 
 ## Acceptance criteria
 - The README "Design decisions" section contains this reasoning.
+
+## Implementation notes
+- **About TDD here:** the out-of-order rules were already built test-first (KAP-02) and wired through the webhook (KAP-05). I expected the new HTTP acceptance tests to pass immediately. They actually failed first, because their state reader also queries `GET /review`, which didn't exist yet. That's a genuine dependency on the new code, and they went green once the review queue was built.
+- **`ReviewService` (application):** `listOpen()` returns each open flag with its order and payment context (oldest first); `resolve(id)` timestamps the flag from the clock. Routes: `GET /review` and `POST /review/:id/resolve` (`404 FLAG_NOT_OPEN` if the flag is unknown or already resolved, `400` for a non-numeric id).
+- **Acceptance tests** (`test/http/out-of-order.test.ts`) drive the whole flow over HTTP: create order → initiate payment → signed webhooks → read the order and the review queue. They cover:
+  - early capture (agreed decision), followed by a stale late Authorised
+  - amount or currency mismatch (not released)
+  - Failed → Captured
+  - Captured → Failed
+  - capture on a cancelled order
+  - all 6 permutations of Authorised/Captured/Failed
+- **Mutation check:** I made early captures be ignored, and 4 HTTP acceptance tests failed (plus 8 domain tests, from KAP-02).
+- No cancel endpoint is in scope. The cancelled-order test sets the status directly in the store; noted in the README limitations.
