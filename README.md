@@ -30,7 +30,7 @@ git clone https://github.com/Tonysingh2812/kappture-ordering.git
 cd kappture-ordering
 npm install
 ```
-(The repository is private; you need access to clone it.) Then open the folder in VS Code (**File → Open Folder…**, or `code .`).
+Then open the folder in VS Code (**File → Open Folder…**, or `code .`).
 
 ### 3. Run the tests
 ```bash

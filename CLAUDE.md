@@ -65,7 +65,7 @@ If a route handler contains an `if` about order or payment state, it belongs in 
 - Retry/timeout logic takes an injectable clock/sleep, so tests are fast and deterministic.
 - Optionally, do a mutation check on key rules: deliberately break the rule and confirm the tests fail.
 - Before committing: `npm run typecheck` and `npm test` are green, the ticket status and notes are updated, and the README sections the ticket affects are updated.
-- One commit per ticket (`KAP-NN: <title>`), pushed to `origin main` (private GitHub repo `Tonysingh2812/kappture-ordering`). End commit messages with the Co-Authored-By trailer.
+- One commit per ticket (`KAP-NN: <title>`), pushed to `origin main` (public GitHub repo `Tonysingh2812/kappture-ordering`). End commit messages with the Co-Authored-By trailer.
 
 ## Agreed design decisions
 
