@@ -118,7 +118,19 @@ Built test-first: each ticket's tests were written and run red before the implem
 - A real provider adapter (its own timeouts, mapping of its event format), timestamped webhook signatures, and secrets from a secret manager.
 - Postgres (async ports, row locking or `SELECT … FOR UPDATE`), an outbox for fulfilment notifications, and TTL clean-up of idempotency keys.
 - Authentication: customers for their own orders, staff for listings, completion and the review queue (with a "resolved by" audit).
-- Observability: metrics and alerts on review flags, rejected or dead-lettered events, duplicates, stuck `Initiated` payments and provider latency; structured logs with a correlation id.
+- **Logging throughout, so every error and decision can be traced.** Today only Fastify's request logs and the 500 handler log anything. Before production I'd add:
+  - **Structured (JSON) logs at every decision point in the services:**
+    - order created, or an idempotent replay
+    - payment initiated
+    - each provider attempt, with its outcome and back-off delay
+    - each webhook, with its outcome (applied, duplicate, stale or rejected) and the reason
+    - every state transition
+    - every review flag raised
+  - **Correlation:** a request id on every log line, plus `orderId`, `paymentId` and `providerEventId`. One order's journey can then be followed from the first request, through provider calls and webhooks, to completion, and matched against the provider's own logs.
+  - **Errors** logged with stack traces and that context (internally only; clients still get the generic `INTERNAL_ERROR` body).
+  - **No card data, secrets or signatures in logs.** Device and customer identifiers would be reviewed for PII.
+  - **Implementation:** a `Logger` port injected into the services like the clock, so log output can also be asserted in tests.
+- **Metrics and alerts** on review flags, rejected or dead-lettered events, duplicates, payments stuck in `Initiated`, and provider latency and error rates.
 - Load testing, plus a cancellation flow with automatic refunds for `CAPTURE_ON_CANCELLED_ORDER` and `DUPLICATE_PAYMENT_CAPTURED`.
 
 ## Use of AI tooling
