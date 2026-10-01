@@ -56,6 +56,11 @@ _More to come._
 | Claiming the key, writing the order, appending the event and storing the result happen in one transaction | Separate steps | A crash can't leave an order without its key (which would mean a duplicate on retry) | Only possible because the whole use case is synchronous; payment initiation (an external call) needs a different approach |
 | Validate before claiming the idempotency key | Claim, then validate | A rejected body doesn't burn the key, so the client can fix the body and retry | An invalid request reusing a completed key gets `400` rather than `422` |
 | zod checks shape and types at the edge; business rules live in the domain | Do everything in zod | Business rules are in one tested place and reusable outside HTTP | Two kinds of 400 (`VALIDATION_FAILED`, `INVALID_ORDER`) |
+| **Payment row saved (Initiated) before calling the provider**, with our payment id as the merchant reference | Call the provider first, then save | If the response is lost or a webhook beats it, we can still match the callback to a payment. There's always a record of the attempt | A payment row exists even if the provider never heard of it (left Initiated; reconciliation settles it) |
+| **Timeout or exhausted retries leave the payment `Initiated` ("pending"), never `Failed`** | Treat a timeout as failure | A timeout means "unknown". The provider may still capture the money, and marking it Failed would invite a second charge | The client must wait for the webhook or poll the order |
+| Bounded retries (3 attempts, exponential back-off with jitter) on transient errors and timeouts, with the same provider idempotency key on every attempt | No retries; unbounded retries | Rides out blips without double-charging (the provider dedupes on the key) | Adds latency to the customer's request (see limitations) |
+| The provider response is recorded by re-reading the payment and running a decline through the domain rules | Overwrite the status with the response | A webhook may have already captured the payment during the call; a late decline must not undo that | Slightly more complex phase 3 |
+| One active payment (Initiated/Authorised) per order; a new attempt is allowed after Failed/Cancelled | Allow parallel payments | Prevents double charging from two devices at the same table | Split bills aren't supported |
 | Vitest | Jest | Native TS/ESM, fast | None significant |
 | Transition rules live in one pure function (`src/domain/payment-events.ts`) returning a decision (`applied` / `duplicate` / `stale` / `rejected` + review flags) | Rules spread across services/handlers; throwing on invalid transitions | One place to reason about and test exhaustively (every state × event); expected business cases are data, not exceptions | Services must persist the decision faithfully |
 | Payments only move forward (Initiated → Authorised → Captured); backwards events are recorded as `stale` and ignored | Re-sequencing/buffering events by provider sequence number | No reliance on the provider ordering or on missing events ever arriving; simple and deterministic | We discard information from stale events (they are still stored for audit) |
@@ -69,7 +74,12 @@ _More to come._
 _TBD_
 
 ## Known limitations
-_TBD_
+- **No real payment provider.** `FakePaymentProvider` accepts every payment when the server runs. In tests it is scripted to decline, error, time out or throw.
+- **Provider retries happen inside the customer's HTTP request,** so the worst case adds back-off delay plus the adapter's timeout per attempt. In production I'd return `202` immediately and run the provider call from a background job (an outbox).
+- **Request timeouts are the provider adapter's responsibility.** The service trusts it to return `timedOut` and doesn't race its own timer.
+- **Single payment per order at a time.** No split bills or partial payments.
+
+_More to come._
 
 ## Before production
 _TBD_

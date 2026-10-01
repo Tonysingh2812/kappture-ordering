@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { Clock, IdGenerator } from '../application/ports/system.ts';
+import { setTimeout as delay } from 'node:timers/promises';
+import type { Clock, IdGenerator, Sleeper } from '../application/ports/system.ts';
+
+export const realSleeper: Sleeper = {
+  sleep: async (ms) => {
+    await delay(ms);
+  },
+};
 
 export const systemClock: Clock = {
   now: () => new Date().toISOString(),

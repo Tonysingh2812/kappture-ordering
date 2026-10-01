@@ -1,6 +1,7 @@
 import { buildApp } from './app.ts';
+import { FakePaymentProvider } from './infrastructure/fake-payment-provider.ts';
 import { createSqliteDataStore, openDatabase } from './infrastructure/sqlite/database.ts';
-import { systemClock, uuidIdGenerator } from './infrastructure/system.ts';
+import { realSleeper, systemClock, uuidIdGenerator } from './infrastructure/system.ts';
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -11,6 +12,9 @@ const app = buildApp({
   dataStore: createSqliteDataStore(db),
   clock: systemClock,
   idGenerator: uuidIdGenerator,
+  // No real provider in this exercise: the fake accepts every payment. Status arrives via the webhook.
+  paymentProvider: new FakePaymentProvider(),
+  sleeper: realSleeper,
   shouldLog: true,
 });
 

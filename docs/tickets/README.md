@@ -15,7 +15,7 @@ Work is split into tickets so progress is easy to track and each one lands as it
 | [KAP-01](KAP-01-database.md) | SQLite schema, migrations and repositories | Done |
 | [KAP-02](KAP-02-domain-state-machines.md) | Order and payment state machines (pure domain) | Done |
 | [KAP-03](KAP-03-create-order.md) | Create/get order API with idempotent submission | Done |
-| [KAP-04](KAP-04-initiate-payment.md) | Payment initiation, provider port and uncertain outcomes | To do |
+| [KAP-04](KAP-04-initiate-payment.md) | Payment initiation, provider port and uncertain outcomes | Done |
 | [KAP-05](KAP-05-webhook-processing.md) | Payment webhook: verification, dedupe and isolation | To do |
 | [KAP-06](KAP-06-out-of-order-and-review.md) | Out-of-order events, early capture and review flags | To do |
 | [KAP-07](KAP-07-completion-and-listing.md) | Order completion and transaction/state listing | To do |

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { OrderService } from '../application/order-service.ts';
 import { sendError, toValidationDetails } from './errors.ts';
+import { readIdempotencyKey } from './idempotency-header.ts';
 
 /** Shape and types only. Business rules (quantities, prices, currencies) are enforced in the domain. */
 const createOrderBodySchema = z.object({
@@ -18,23 +19,17 @@ const createOrderBodySchema = z.object({
   currency: z.string(),
 });
 
-const idempotencyKeySchema = z.string().min(1).max(255);
-
 export function registerOrderRoutes(app: FastifyInstance, orderService: OrderService): void {
   app.post('/orders', async (request, reply) => {
-    const idempotencyKey = idempotencyKeySchema.safeParse(request.headers['idempotency-key']);
-    if (!idempotencyKey.success) {
-      return sendError(reply, 400, 'VALIDATION_FAILED', 'An Idempotency-Key header (1-255 characters) is required', [
-        { path: 'headers.Idempotency-Key', message: 'Required' },
-      ]);
-    }
+    const idempotencyKey = readIdempotencyKey(request, reply);
+    if (idempotencyKey === null) return reply;
 
     const body = createOrderBodySchema.safeParse(request.body);
     if (!body.success) {
       return sendError(reply, 400, 'VALIDATION_FAILED', 'Request body is invalid', toValidationDetails(body.error));
     }
 
-    const result = orderService.createOrder({ ...body.data, idempotencyKey: idempotencyKey.data });
+    const result = orderService.createOrder({ ...body.data, idempotencyKey });
 
     if (result.isOk) {
       return reply.status(201).header('idempotent-replayed', String(result.isReplay)).send(result.order);

@@ -1,4 +1,13 @@
-import type { Clock, IdGenerator } from '../../src/application/ports/system.ts';
+import type { Clock, IdGenerator, Sleeper } from '../../src/application/ports/system.ts';
+
+/** Resolves immediately and records the requested delays, so back-off can be asserted without waiting. */
+export class InstantSleeper implements Sleeper {
+  readonly delays: number[] = [];
+
+  async sleep(ms: number): Promise<void> {
+    this.delays.push(ms);
+  }
+}
 
 export class FakeClock implements Clock {
   private currentMs: number;

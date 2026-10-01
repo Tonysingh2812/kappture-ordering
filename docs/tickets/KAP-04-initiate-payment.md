@@ -1,6 +1,6 @@
 # KAP-04: Payment initiation, provider port and uncertain outcomes
 
-**Status:** To do
+**Status:** Done
 
 ## Goal
 Associate a payment with an order and keep a coherent source of truth even when the call to the provider times out or fails.
@@ -28,3 +28,14 @@ Associate a payment with an order and keep a coherent source of truth even when 
 
 ## Acceptance criteria
 - No code path marks a payment `Failed` just because the outcome is unknown.
+
+## Implementation notes
+- **Three phases**, because an external call can't sit inside a database transaction:
+  1. **Claim (transaction):** claim the idempotency key, check the order, and save the payment as `Initiated` plus a `PaymentInitiated` event. Business refusals (not found, not payable, payment already in progress) release the key.
+  2. **Call (no transaction):** bounded retries with exponential back-off and jitter, the same provider idempotency key on every attempt, and unexpected exceptions treated as transient.
+  3. **Record (transaction):** **re-read** the payment, because a webhook may have changed it during the call. An `accepted` response stores `providerPaymentId` without touching the status. A `declined` response becomes a synthetic `PaymentFailed` event run through the **domain rules**, so a late decline can't undo a capture (it gets flagged instead). A timeout or exhausted retries leaves the payment unchanged, giving `pending`.
+- **`persistPaymentEvent`** is a new shared application helper: domain decision → save statuses, audit events and flags. KAP-05 (webhooks) and KAP-08 (reconciliation) reuse it, so every source of payment truth goes through one set of rules.
+- **Provider adapters own their request timeout** and report it as `timedOut`. The service doesn't add its own race-based timeout, which would make tests non-deterministic with an instant sleeper. Documented as a limitation.
+- **HTTP:** `202` for accepted or pending (the final result arrives asynchronously), `402` when the payment ended up `Failed` (declined), and `409` for not payable or already in progress.
+- **Mutation check:** I made unknown outcomes mark the payment Failed, and 3 tests failed (service and HTTP).
+- The "uncertain outcome resolved by a later webhook" test belongs to KAP-05, which adds the webhook.
