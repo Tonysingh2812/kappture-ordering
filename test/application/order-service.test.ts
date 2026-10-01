@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createOrderService, type CreateOrderInput, type OrderService } from '../../src/application/order-service.ts';
 import type { DataStore } from '../../src/application/ports/repositories.ts';
 import { createSqliteDataStore, openDatabase } from '../../src/infrastructure/sqlite/database.ts';
+import { deviceA, deviceB } from '../support/builders.ts';
 import { FakeClock, SequentialIdGenerator } from '../support/fakes.ts';
 
 let store: DataStore;
@@ -16,6 +17,7 @@ beforeEach(() => {
 
 const input = (overrides: Partial<CreateOrderInput> = {}): CreateOrderInput => ({
   idempotencyKey: 'key-1',
+  deviceId: deviceA,
   venueId: 'venue-1',
   tableRef: 'T12',
   items: [
@@ -64,6 +66,7 @@ describe('createOrder', () => {
         tableRef: 'T12',
         venueId: 'venue-1',
         idempotencyKey: 'key-1',
+        deviceId: deviceA,
         items: input().items.map(({ unitPriceMinor, quantity, name, sku }) => ({ unitPriceMinor, quantity, name, sku })),
       });
 
@@ -80,7 +83,7 @@ describe('createOrder', () => {
     });
 
     it('reports a request still in progress for the same key', () => {
-      store.idempotency.tryBegin({ scope: 'createOrder', key: 'key-1', requestHash: 'whatever', createdAt: clock.now() });
+      store.idempotency.tryBegin({ scope: `createOrder:${deviceA}`, key: 'key-1', requestHash: 'whatever', createdAt: clock.now() });
 
       expect(service.createOrder(input())).toEqual({ isOk: false, error: 'REQUEST_IN_PROGRESS' });
       expect(store.orders.list()).toHaveLength(0);
@@ -202,5 +205,91 @@ describe('completeOrder', () => {
 
   it('reports an unknown order', () => {
     expect(service.completeOrder('missing')).toEqual({ isOk: false, error: 'ORDER_NOT_FOUND' });
+  });
+});
+
+describe('device scoping and soft duplicate detection (KAP-11)', () => {
+  it('records the device on the order and in OrderCreated', () => {
+    service.createOrder(input());
+
+    expect(store.orders.findById('ord_1')).toMatchObject({ deviceId: deviceA });
+    expect(store.orderEvents.listByOrderId('ord_1')[0]).toMatchObject({ data: { deviceId: deviceA } });
+  });
+
+  it('scopes idempotency keys per device: the same key from two devices creates two orders', () => {
+    const fromA = service.createOrder(input({ deviceId: deviceA, tableRef: 'T1' }));
+    const fromB = service.createOrder(input({ deviceId: deviceB, tableRef: 'T2' }));
+
+    expect(fromA).toMatchObject({ isOk: true, isReplay: false, order: { id: 'ord_1' } });
+    expect(fromB).toMatchObject({ isOk: true, isReplay: false, order: { id: 'ord_2' } });
+  });
+
+  it("never replays another device's stored result for the same key", () => {
+    service.createOrder(input({ deviceId: deviceA }));
+
+    const fromB = service.createOrder(input({ deviceId: deviceB }));
+
+    expect(fromB).toMatchObject({ isOk: true, isReplay: false, order: { id: 'ord_2', deviceId: deviceB } });
+  });
+
+  it('still replays a genuine retry from the same device and key', () => {
+    service.createOrder(input());
+
+    expect(service.createOrder(input())).toMatchObject({ isOk: true, isReplay: true, order: { id: 'ord_1' } });
+  });
+
+  describe('same device, identical basket, new key (e.g. page reload lost the key)', () => {
+    it('within 60s: refuses as a possible duplicate, pointing at the existing order', () => {
+      service.createOrder(input({ idempotencyKey: 'key-1' }));
+      clock.advanceMs(60_000);
+
+      const result = service.createOrder(input({ idempotencyKey: 'key-2' }));
+
+      expect(result).toEqual({ isOk: false, error: 'POSSIBLE_DUPLICATE', existingOrderId: 'ord_1' });
+      expect(store.orders.list()).toHaveLength(1);
+    });
+
+    it('creates it when the customer confirms, reusing the same key', () => {
+      service.createOrder(input({ idempotencyKey: 'key-1' }));
+      service.createOrder(input({ idempotencyKey: 'key-2' }));
+
+      const confirmed = service.createOrder(input({ idempotencyKey: 'key-2', confirmDuplicate: true }));
+
+      expect(confirmed).toMatchObject({ isOk: true, isReplay: false, order: { id: 'ord_2' } });
+      expect(store.orders.list()).toHaveLength(2);
+    });
+
+    it('after 60s: creates a new order (a genuine "same again")', () => {
+      service.createOrder(input({ idempotencyKey: 'key-1' }));
+      clock.advanceMs(60_001);
+
+      expect(service.createOrder(input({ idempotencyKey: 'key-2' }))).toMatchObject({ isOk: true, isReplay: false });
+    });
+  });
+
+  it('does not treat the same basket from a different device as a duplicate (two people, same table)', () => {
+    service.createOrder(input({ idempotencyKey: 'key-1', deviceId: deviceA }));
+
+    expect(service.createOrder(input({ idempotencyKey: 'key-2', deviceId: deviceB }))).toMatchObject({ isOk: true });
+  });
+
+  it('does not treat a different basket from the same device as a duplicate', () => {
+    service.createOrder(input({ idempotencyKey: 'key-1' }));
+
+    const different = service.createOrder(
+      input({ idempotencyKey: 'key-2', items: [{ sku: 'cola', name: 'Cola', quantity: 1, unitPriceMinor: 300 }] }),
+    );
+
+    expect(different).toMatchObject({ isOk: true });
+  });
+
+  it('treats the basket as identical regardless of item field order', () => {
+    service.createOrder(input({ idempotencyKey: 'key-1' }));
+    const reordered = input({
+      idempotencyKey: 'key-2',
+      items: input().items.map(({ unitPriceMinor, quantity, name, sku }) => ({ unitPriceMinor, quantity, name, sku })),
+    });
+
+    expect(service.createOrder(reordered)).toMatchObject({ isOk: false, error: 'POSSIBLE_DUPLICATE' });
   });
 });

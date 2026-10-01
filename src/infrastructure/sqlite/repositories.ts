@@ -61,6 +61,10 @@ export function createOrderRepository(db: Database.Database): OrderRepository {
       ).run({ ...order, items: JSON.stringify(order.items) });
     },
 
+    findRecentByDevice(_deviceId, _since) {
+      throw new Error('Not implemented');
+    },
+
     findById(id) {
       const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id) as Row | undefined;
       return row ? toOrder(row) : null;

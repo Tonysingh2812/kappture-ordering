@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import type { OrderStatus } from '../../src/domain/types.ts';
+import { deviceA } from '../support/builders.ts';
 import { createTestApp, type TestApp } from '../support/test-app.ts';
 import { providerEvent, signed } from '../support/webhooks.ts';
 
@@ -21,7 +22,7 @@ async function startPaidFlow(): Promise<{ orderId: string; paymentId: string }> 
   const order = await testApp.app.inject({
     method: 'POST',
     url: '/orders',
-    headers: { 'idempotency-key': 'order-key' },
+    headers: { 'idempotency-key': 'order-key', 'x-device-id': deviceA },
     payload: {
       venueId: 'venue-1',
       tableRef: 'T12',
@@ -33,7 +34,7 @@ async function startPaidFlow(): Promise<{ orderId: string; paymentId: string }> 
   const payment = await testApp.app.inject({
     method: 'POST',
     url: `/orders/${orderId}/payments`,
-    headers: { 'idempotency-key': 'payment-key' },
+    headers: { 'idempotency-key': 'payment-key', 'x-device-id': deviceA },
   });
   return { orderId, paymentId: payment.json().payment.id as string };
 }

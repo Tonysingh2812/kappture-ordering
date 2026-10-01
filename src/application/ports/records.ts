@@ -22,6 +22,8 @@ export interface OrderRecord {
   items: OrderItem[];
   totalMinor: number;
   currency: string;
+  /** Random id the customer's device generated on first QR scan (KAP-11). Null for rows created before it. */
+  deviceId: string | null;
   status: OrderStatus;
   /** Optimistic concurrency token, incremented on every update. */
   version: number;
@@ -36,6 +38,7 @@ export interface PaymentRecord {
   providerPaymentId: string | null;
   amountMinor: number;
   currency: string;
+  deviceId: string | null;
   status: PaymentStatus;
   /** Sent to the provider on every (re)try of initiation so it can't charge twice. */
   providerIdempotencyKey: string;

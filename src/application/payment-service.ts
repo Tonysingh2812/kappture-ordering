@@ -10,6 +10,7 @@ import { callWithRetry, defaultRetryPolicy, type RetryPolicy } from './retry.ts'
 export interface InitiatePaymentInput {
   orderId: string;
   idempotencyKey: string;
+  deviceId: string;
 }
 
 /**

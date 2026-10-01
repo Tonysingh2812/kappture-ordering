@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { deviceA } from '../support/builders.ts';
 import { createTestApp, type TestApp } from '../support/test-app.ts';
 
 let testApp: TestApp;
@@ -22,7 +23,7 @@ const postOrder = (body: unknown, idempotencyKey: string | null = 'key-1') =>
   testApp.app.inject({
     method: 'POST',
     url: '/orders',
-    headers: idempotencyKey === null ? {} : { 'idempotency-key': idempotencyKey },
+    headers: { 'x-device-id': deviceA, ...(idempotencyKey === null ? {} : { 'idempotency-key': idempotencyKey }) },
     payload: body as object,
   });
 
@@ -55,7 +56,7 @@ describe('POST /orders', () => {
 
   it('returns 409 with Retry-After while the original request is in progress', async () => {
     testApp.store.idempotency.tryBegin({
-      scope: 'createOrder',
+      scope: `createOrder:${deviceA}`,
       key: 'key-1',
       requestHash: 'x',
       createdAt: testApp.clock.now(),
@@ -99,7 +100,7 @@ describe('POST /orders', () => {
     const res = await testApp.app.inject({
       method: 'POST',
       url: '/orders',
-      headers: { 'idempotency-key': 'key-1', 'content-type': 'application/json' },
+      headers: { 'idempotency-key': 'key-1', 'x-device-id': deviceA, 'content-type': 'application/json' },
       payload: '{not json',
     });
 

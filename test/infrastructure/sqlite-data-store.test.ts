@@ -86,6 +86,15 @@ describe('orders', () => {
     expect(store.orders.findById('order-1')).toMatchObject({ status: 'Paid', version: 2 });
   });
 
+  it('finds recent orders from one device, oldest first', () => {
+    store.orders.insert(buildOrder({ id: 'old', deviceId: 'dev-1', createdAt: t0 }));
+    store.orders.insert(buildOrder({ id: 'recent', deviceId: 'dev-1', createdAt: t1 }));
+    store.orders.insert(buildOrder({ id: 'latest', deviceId: 'dev-1', createdAt: t2 }));
+    store.orders.insert(buildOrder({ id: 'other-device', deviceId: 'dev-2', createdAt: t2 }));
+
+    expect(store.orders.findRecentByDevice('dev-1', t1).map((o) => o.id)).toEqual(['recent', 'latest']);
+  });
+
   it('lists orders, optionally filtered by status, oldest first', () => {
     store.orders.insert(buildOrder({ id: 'a', createdAt: t0 }));
     store.orders.insert(buildOrder({ id: 'b', createdAt: t1, status: 'Paid' }));

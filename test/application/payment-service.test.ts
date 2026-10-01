@@ -8,7 +8,7 @@ import {
 import type { DataStore } from '../../src/application/ports/repositories.ts';
 import { FakePaymentProvider } from '../../src/infrastructure/fake-payment-provider.ts';
 import { createSqliteDataStore, openDatabase } from '../../src/infrastructure/sqlite/database.ts';
-import { buildOrder } from '../support/builders.ts';
+import { buildOrder, deviceA, deviceB } from '../support/builders.ts';
 import { FakeClock, InstantSleeper, SequentialIdGenerator } from '../support/fakes.ts';
 
 let store: DataStore;
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 const initiate = (overrides: Partial<InitiatePaymentInput> = {}) =>
-  service.initiatePayment({ orderId: 'order-1', idempotencyKey: 'pay-key-1', ...overrides });
+  service.initiatePayment({ orderId: 'order-1', idempotencyKey: 'pay-key-1', deviceId: deviceA, ...overrides });
 
 describe('initiatePayment: happy path', () => {
   it('creates a payment for the order total and stores the provider reference', async () => {
@@ -212,5 +212,28 @@ describe('initiatePayment: webhook races the provider response', () => {
     expect(store.payments.findById('pay_1')).toMatchObject({ status: 'Captured' });
     expect(store.orders.findById('order-1')).toMatchObject({ status: 'Paid' });
     expect(store.reviewFlags.listByOrderId('order-1').map((f) => f.reason)).toContain('CONFLICTING_EVENT_AFTER_CAPTURE');
+  });
+});
+
+describe('initiatePayment: device scoping (KAP-11)', () => {
+  it('records the device on the payment and in PaymentInitiated', async () => {
+    await initiate();
+
+    expect(store.payments.findById('pay_1')).toMatchObject({ deviceId: deviceA });
+    expect(store.orderEvents.listByOrderId('order-1')[0]).toMatchObject({ data: { deviceId: deviceA } });
+  });
+
+  it("does not replay another device's result for the same key", async () => {
+    await initiate({ deviceId: deviceA });
+
+    const fromB = await initiate({ deviceId: deviceB });
+
+    expect(fromB).toEqual({ isOk: false, error: 'PAYMENT_ALREADY_IN_PROGRESS', paymentId: 'pay_1' });
+  });
+
+  it('allows a different device to pay for the order (e.g. paying for a friend)', async () => {
+    store.orders.insert(buildOrder({ id: 'order-2', deviceId: deviceA }));
+
+    expect(await initiate({ orderId: 'order-2', deviceId: deviceB })).toMatchObject({ isOk: true });
   });
 });

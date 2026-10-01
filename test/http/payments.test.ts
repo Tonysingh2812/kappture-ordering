@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildOrder } from '../support/builders.ts';
+import { buildOrder, deviceA } from '../support/builders.ts';
 import { createTestApp, type TestApp } from '../support/test-app.ts';
 
 let testApp: TestApp;
@@ -17,7 +17,7 @@ const postPayment = (orderId = 'order-1', idempotencyKey: string | null = 'pay-k
   testApp.app.inject({
     method: 'POST',
     url: `/orders/${orderId}/payments`,
-    headers: idempotencyKey === null ? {} : { 'idempotency-key': idempotencyKey },
+    headers: { 'x-device-id': deviceA, ...(idempotencyKey === null ? {} : { 'idempotency-key': idempotencyKey }) },
   });
 
 describe('POST /orders/:id/payments', () => {

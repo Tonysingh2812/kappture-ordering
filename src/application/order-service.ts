@@ -6,6 +6,9 @@ import { hashRequest } from './request-hash.ts';
 
 export interface CreateOrderInput {
   idempotencyKey: string;
+  deviceId: string;
+  /** Set when the customer confirms they really want an order that looks like a duplicate. */
+  confirmDuplicate?: boolean;
   venueId: string;
   tableRef: string;
   items: NewOrderItem[];
@@ -21,7 +24,9 @@ export type CreateOrderResult =
   /** The key was already used with a different request body. */
   | { isOk: false; error: 'IDEMPOTENCY_KEY_REUSED' }
   /** The key's original request has not finished yet. */
-  | { isOk: false; error: 'REQUEST_IN_PROGRESS' };
+  | { isOk: false; error: 'REQUEST_IN_PROGRESS' }
+  /** Same device, identical basket, recently, under a different key. Resend with confirmDuplicate to proceed. */
+  | { isOk: false; error: 'POSSIBLE_DUPLICATE'; existingOrderId: string };
 
 export interface OrderDetails {
   order: OrderView;

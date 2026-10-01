@@ -5,7 +5,7 @@ import { createWebhookService, type WebhookService } from '../../src/application
 import { FakePaymentProvider } from '../../src/infrastructure/fake-payment-provider.ts';
 import { createHmacSignatureVerifier } from '../../src/infrastructure/hmac-signature.ts';
 import { createSqliteDataStore, openDatabase } from '../../src/infrastructure/sqlite/database.ts';
-import { buildOrder, buildPayment } from '../support/builders.ts';
+import { buildOrder, buildPayment, deviceA } from '../support/builders.ts';
 import { FakeClock, InstantSleeper, SequentialIdGenerator } from '../support/fakes.ts';
 import { providerEvent, signed, testWebhookSecret } from '../support/webhooks.ts';
 
@@ -205,7 +205,7 @@ describe('uncertain outcome: payment succeeds after the initiating request timed
       random: () => 0,
     });
 
-    const initiation = await payments.initiatePayment({ orderId: 'order-1', idempotencyKey: 'k1' });
+    const initiation = await payments.initiatePayment({ orderId: 'order-1', idempotencyKey: 'k1', deviceId: deviceA });
     expect(initiation).toMatchObject({ isOk: true, providerOutcome: 'pending', payment: { id: 'pay_1' } });
 
     clock.advanceMs(30_000);

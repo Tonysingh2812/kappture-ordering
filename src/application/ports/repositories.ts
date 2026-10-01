@@ -26,6 +26,8 @@ export interface OrderRepository {
   insert(order: OrderRecord): void;
   findById(id: string): OrderRecord | null;
   /** Throws ConcurrencyError if the stored version is not `expectedVersion`. Returns the new version. */
+  /** Orders from one device created at or after `since`, oldest first (for soft duplicate detection). */
+  findRecentByDevice(deviceId: string, since: IsoTimestamp): OrderRecord[];
   updateStatus(id: string, status: OrderStatus, expectedVersion: number, updatedAt: IsoTimestamp): number;
   list(options?: ListOptions<OrderStatus>): OrderRecord[];
 }

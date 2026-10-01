@@ -19,7 +19,7 @@ Work is split into tickets so progress is easy to track and each one lands as it
 | [KAP-05](KAP-05-webhook-processing.md) | Payment webhook: verification, dedupe and isolation | Done |
 | [KAP-06](KAP-06-out-of-order-and-review.md) | Out-of-order events, early capture and review flags | Done |
 | [KAP-07](KAP-07-completion-and-listing.md) | Order completion and transaction/state listing | Done |
-| [KAP-08](KAP-08-reconciliation.md) | Reconciliation of stuck payments (stretch) | To do |
+| [KAP-08](KAP-08-reconciliation.md) | Reconciliation of stuck payments (stretch) | Deferred: documented as next step |
 | [KAP-11](KAP-11-device-session-id.md) | Device/session ID: idempotency scoping and soft duplicate detection | To do |
 | [KAP-10](KAP-10-e2e-tests.md) | End-to-end integration tests (real server, SQLite file, HTTP) | To do |
 | [KAP-09](KAP-09-docs.md) | Final README: decisions, limitations, before production | To do |
