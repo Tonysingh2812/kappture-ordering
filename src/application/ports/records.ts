@@ -85,8 +85,8 @@ export interface IdempotencyRecord {
   key: string;
   requestHash: string;
   status: IdempotencyStatus;
-  responseCode: number | null;
-  responseBody: string | null;
+  /** JSON of the use-case result, replayed for retries. Null while in progress. */
+  result: string | null;
   createdAt: IsoTimestamp;
 }
 

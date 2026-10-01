@@ -249,8 +249,7 @@ const toIdempotency = (row: Row): IdempotencyRecord => ({
   key: row.key as string,
   requestHash: row.request_hash as string,
   status: row.status as IdempotencyRecord['status'],
-  responseCode: (row.response_code as number | null) ?? null,
-  responseBody: (row.response_body as string | null) ?? null,
+  result: (row.result as string | null) ?? null,
   createdAt: row.created_at as string,
 });
 
@@ -271,11 +270,10 @@ export function createIdempotencyRepository(db: Database.Database): IdempotencyR
       return toIdempotency(row);
     },
 
-    complete(scope, key, responseCode, responseBody) {
+    complete(scope, key, result) {
       db.prepare(
-        `UPDATE idempotency_keys SET status = 'completed', response_code = ?, response_body = ?
-         WHERE scope = ? AND key = ?`,
-      ).run(responseCode, responseBody, scope, key);
+        `UPDATE idempotency_keys SET status = 'completed', result = ? WHERE scope = ? AND key = ?`,
+      ).run(result, scope, key);
     },
 
     release(scope, key) {

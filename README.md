@@ -19,13 +19,29 @@ npm run dev         # run from source with reload
 
 Check it's running: `curl http://127.0.0.1:3000/health` returns `{"status":"ok"}`.
 
+Configuration (environment variables): `PORT` (default `3000`), `HOST` (default `127.0.0.1`), `DATABASE_PATH` (default `kappture.db` in the working directory; migrations run on startup).
+
+```bash
+# Create an order (repeat the same command: same order, header idempotent-replayed: true)
+curl -i -X POST http://127.0.0.1:3000/orders \
+  -H 'content-type: application/json' -H 'idempotency-key: demo-1' \
+  -d '{"venueId":"venue-1","tableRef":"T12","items":[{"sku":"burger","name":"Burger","quantity":2,"unitPriceMinor":1250}],"currency":"GBP"}'
+
+curl http://127.0.0.1:3000/orders/<order id>
+```
+
 _TBD: curl walkthrough of the full flow._
 
 ## Approach
 _TBD_
 
 ## Assumptions
-_TBD_
+- **QR code:** scanning one gives the client a `venueId` and `tableRef`. QR handling itself is out of scope.
+- **Prices:** the server computes the order total from the items. A client-supplied total is never trusted. A real system would look up prices from the venue's menu; here the client sends unit prices.
+- **Currencies:** GBP, EUR and USD are accepted. A real venue would configure its own.
+- **Duplicate submission:** the client generates one `Idempotency-Key` per logical order, e.g. when the customer taps "Place order", and reuses it on every retry. Two requests with identical bodies but different keys are two orders (e.g. two people at the same table ordering the same thing).
+
+_More to come._
 
 ## Design decisions
 | Decision | Alternatives | Why | Cost |
@@ -36,6 +52,10 @@ _TBD_
 | Provider events deduplicated by a unique `provider_event_id`, using one `INSERT … ON CONFLICT DO UPDATE` that counts deliveries | Check then insert; a separate row per delivery | Atomic and race-free; one row per logical event, with a delivery count for observability | Only the first delivery's payload is kept |
 | `STRICT` tables + `CHECK` constraints + foreign keys | Rely on application validation only | Defence in depth: bad money or status values can't be persisted even if the code has a bug | Schema changes need migrations |
 | Optimistic concurrency (`version` column) on orders and payments | Pessimistic locks | Cheap, and catches lost updates if the service ever runs concurrently | A conflict surfaces as an error and needs a retry |
+| Idempotency enforced in the application service, storing the use-case result per key | Fastify middleware caching HTTP responses | "Don't create the same order twice" is a business rule, so it should be testable without HTTP and reusable from other entry points (queue, CLI) | The HTTP layer re-maps the replayed result to a status code |
+| Claiming the key, writing the order, appending the event and storing the result happen in one transaction | Separate steps | A crash can't leave an order without its key (which would mean a duplicate on retry) | Only possible because the whole use case is synchronous; payment initiation (an external call) needs a different approach |
+| Validate before claiming the idempotency key | Claim, then validate | A rejected body doesn't burn the key, so the client can fix the body and retry | An invalid request reusing a completed key gets `400` rather than `422` |
+| zod checks shape and types at the edge; business rules live in the domain | Do everything in zod | Business rules are in one tested place and reusable outside HTTP | Two kinds of 400 (`VALIDATION_FAILED`, `INVALID_ORDER`) |
 | Vitest | Jest | Native TS/ESM, fast | None significant |
 | Transition rules live in one pure function (`src/domain/payment-events.ts`) returning a decision (`applied` / `duplicate` / `stale` / `rejected` + review flags) | Rules spread across services/handlers; throwing on invalid transitions | One place to reason about and test exhaustively (every state × event); expected business cases are data, not exceptions | Services must persist the decision faithfully |
 | Payments only move forward (Initiated → Authorised → Captured); backwards events are recorded as `stale` and ignored | Re-sequencing/buffering events by provider sequence number | No reliance on the provider ordering or on missing events ever arriving; simple and deterministic | We discard information from stale events (they are still stored for audit) |

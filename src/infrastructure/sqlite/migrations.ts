@@ -84,4 +84,13 @@ export const migrations: readonly { version: number; sql: string }[] = [
       CREATE INDEX review_flags_by_order ON review_flags (order_id, id);
     `,
   },
+  {
+    // Idempotency stores the use-case result (application layer), not an HTTP response, so business
+    // logic stays independent of HTTP. The HTTP layer maps the replayed result to a status code.
+    version: 2,
+    sql: `
+      ALTER TABLE idempotency_keys DROP COLUMN response_code;
+      ALTER TABLE idempotency_keys RENAME COLUMN response_body TO result;
+    `,
+  },
 ];

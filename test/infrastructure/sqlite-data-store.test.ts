@@ -223,18 +223,17 @@ describe('idempotency keys', () => {
   it('returns the in-progress record when the key is reused before completion', () => {
     begin();
 
-    expect(begin()).toMatchObject({ status: 'in_progress', requestHash: 'h1', responseCode: null });
+    expect(begin()).toMatchObject({ status: 'in_progress', requestHash: 'h1', result: null });
   });
 
   it('returns the stored response once completed', () => {
     begin();
-    store.idempotency.complete('POST /orders', 'k1', 201, '{"id":"order-1"}');
+    store.idempotency.complete('POST /orders', 'k1', '{"id":"order-1"}');
 
     expect(begin({ requestHash: 'h2' })).toMatchObject({
       status: 'completed',
       requestHash: 'h1',
-      responseCode: 201,
-      responseBody: '{"id":"order-1"}',
+      result: '{"id":"order-1"}',
     });
   });
 

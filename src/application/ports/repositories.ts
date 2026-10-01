@@ -82,7 +82,7 @@ export interface BeginIdempotentRequestInput {
 export interface IdempotencyRepository {
   /** Claims the key. Returns null if newly claimed, or the existing record if the key was already used. */
   tryBegin(input: BeginIdempotentRequestInput): IdempotencyRecord | null;
-  complete(scope: string, key: string, responseCode: number, responseBody: string): void;
+  complete(scope: string, key: string, result: string): void;
   /** Releases a claim whose request failed unexpectedly, so the client can retry. */
   release(scope: string, key: string): void;
 }

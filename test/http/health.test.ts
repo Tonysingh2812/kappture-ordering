@@ -1,21 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { buildApp } from '../../src/app.ts';
+import { createTestApp, type TestApp } from '../support/test-app.ts';
 
 describe('GET /health', () => {
-  let app: FastifyInstance;
+  let testApp: TestApp;
 
   beforeEach(async () => {
-    app = buildApp();
-    await app.ready();
+    testApp = await createTestApp();
   });
 
   afterEach(async () => {
-    await app.close();
+    await testApp.app.close();
   });
 
   it('returns 200 with status ok', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health' });
+    const res = await testApp.app.inject({ method: 'GET', url: '/health' });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
