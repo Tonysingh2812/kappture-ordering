@@ -122,7 +122,15 @@ Built test-first: each ticket's tests were written and run red before the implem
 - Load testing, plus a cancellation flow with automatic refunds for `CAPTURE_ON_CANCELLED_ORDER` and `DUPLICATE_PAYMENT_CAPTURED`.
 
 ## Use of AI tooling
-Built with Claude Code as a pair programmer. I kept control of the decisions and the process:
+Built with Claude Code as a pair programmer.
+
+### Where it materially accelerated the work
+- **Writing tests, in volume and fast.** About 245 tests across the domain, repositories, services, HTTP and e2e. That includes the exhaustive transition table (every payment state × event), the arrival-order permutation tests, and a test for each failure mode. Writing that many tests first, by hand, wouldn't have fitted in the timebox. AI made strict TDD practical rather than aspirational.
+- **Building the models.** The domain types, the order and payment state machines, and the typed result shapes for each use case.
+- **The database structure and test doubles.** The SQLite schema and migrations, the repositories and their mapping to and from records, and the test support around them: a fresh in-memory database per test, record builders, a fake clock, an instant sleeper, and a scriptable fake payment provider that can decline, error, time out or throw.
+
+### Where I kept control
+I kept control of the decisions and the process:
 - **Decisions were mine.** I chose the answer to the "PaymentCaptured while AwaitingPayment" question (accept a confident match so the sale goes through, plus a non-blocking review flag), "Captured wins + flag" for conflicting events, SQLite for an auditable history, and a device/session ID rather than fingerprinting. The AI laid out the options and trade-offs; I chose.
 - **Process rules I set:** strict TDD (tests seen failing first), one ticket and one commit at a time, business logic separate from endpoints, naming conventions. They're written into `CLAUDE.md` so the agent follows them.
 - **What was verified rather than trusted:**
