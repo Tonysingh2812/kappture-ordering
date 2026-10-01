@@ -128,6 +128,18 @@ HTTP (Fastify routes) → application services → domain (pure rules)
 ```
 
 ## Assumptions
+- **"Required conditions" for fulfilment (step 5 of the brief).** An order is available for fulfilment (`Paid`) when **all** of these hold:
+  1. a payment for it reaches **Captured**
+  2. that payment's amount and currency **match the order total**
+  3. the event is **authentic** (signature verified)
+  4. the order is still `AwaitingPayment`, i.e. not cancelled and not already paid
+
+  Anything unusual along the way (early capture, conflicting events) raises a review flag but **does not** block fulfilment.
+- **Authorised is not enough to fulfil; Captured is.** Authorised only reserves funds, and an authorisation can still be cancelled or expire. For pay-before-you-eat ordering, releasing on capture avoids serving food that's never paid for. If a venue wanted faster release (auth-then-capture-on-serve), this is one rule to change in the domain.
+- **"Completed" means handed to fulfilment** (e.g. sent to the kitchen or marked served), triggered explicitly by staff or a downstream system. It doesn't mean delivered.
+- **Payment status arrives by webhook push.** The provider calls `POST /webhooks/payments` with a signed event. Polling the provider (reconciliation) is the fallback for lost webhooks and is listed under next steps.
+- **One payment covers the whole order.** There's one active attempt at a time; retry after a decline is allowed. No split bills or partial payments.
+- **Our payment id is the reference both sides share.** We send it to the provider as the merchant reference, and the provider echoes it in every event. That's what lets a callback be matched even if our initiation request timed out.
 - **QR code:** scanning one gives the client a `venueId` and `tableRef`. QR handling itself is out of scope.
 - **Prices:** the server computes the order total from the items. A client-supplied total is never trusted. A real system would look up prices from the venue's menu; here the client sends unit prices.
 - **Currencies:** GBP, EUR and USD are accepted. A real venue would configure its own.
