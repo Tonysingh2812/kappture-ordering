@@ -1,6 +1,6 @@
 # KAP-05: Payment webhook: verification, dedupe and isolation
 
-**Status:** To do
+**Status:** Done
 
 ## Goal
 Process asynchronous payment events exactly once in effect. A bad event must never block other orders.
@@ -31,3 +31,13 @@ Process asynchronous payment events exactly once in effect. A bad event must nev
 
 ## Acceptance criteria
 - Duplicate and isolation behaviour is proven through the HTTP endpoint.
+
+## Implementation notes
+- **`WebhookService` (application)** owns verification (through a `WebhookSignatureVerifier` port), parsing, dedupe and applying events. The route only extracts the raw body and signature header and maps the result: `200` handled, `401` bad signature, `500` unexpected.
+- **One transaction per event:** record the delivery (the dedupe point), load the payment and order, run `persistPaymentEvent` (the domain rules), backfill `providerPaymentId`, and set the outcome. An internal error rolls everything back, **including the delivery record**, so the provider's retry is processed fresh. Tested at both the service and HTTP levels.
+- **Bad signatures are not recorded.** Otherwise anyone could fill the dead-letter store. Signatures are HMAC-SHA256 over the **raw** body (the route uses an encapsulated raw-string parser), compared in constant time.
+- **Invalid events are dead-lettered** (`payment_events.outcome = rejected`, with the reason) and acknowledged with `200`, because a retry wouldn't fix them. Unparseable bodies get a synthetic id `invalid:<sha256 of body>`, so identical garbage is also deduplicated.
+- **Two layers of dedupe:** the unique `eventId` first, then the domain's forward-only rules. The mutation check showed this: with eventId dedupe switched off, the HTTP repeat test still passed because the domain returned `duplicate`; the service-level test is what catches it.
+- **Mutation checks:** turning off eventId dedupe made 2 tests fail; accepting bad signatures made 4 fail.
+- **Real run:** order → payment → the same signed webhook ×6 → one applied event, order Paid; a bad signature got 401.
+- **Known edge:** if a provider ever sent a schema-invalid event and later a corrected one **with the same eventId**, the second would be treated as a duplicate. Real providers resend identical payloads per event id. Noted in the README limitations.

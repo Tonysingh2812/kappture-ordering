@@ -6,6 +6,7 @@ import { realSleeper, systemClock, uuidIdGenerator } from './infrastructure/syst
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '127.0.0.1';
 const databasePath = process.env.DATABASE_PATH ?? 'kappture.db';
+const webhookSecret = process.env.WEBHOOK_SECRET ?? 'dev-webhook-secret';
 
 const db = openDatabase(databasePath);
 const app = buildApp({
@@ -15,8 +16,13 @@ const app = buildApp({
   // No real provider in this exercise: the fake accepts every payment. Status arrives via the webhook.
   paymentProvider: new FakePaymentProvider(),
   sleeper: realSleeper,
+  webhookSecret,
   shouldLog: true,
 });
+
+if (process.env.WEBHOOK_SECRET === undefined) {
+  app.log.warn('WEBHOOK_SECRET not set; using an insecure development default');
+}
 
 app.addHook('onClose', async () => {
   db.close();

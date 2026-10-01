@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createOrderService } from './application/order-service.ts';
 import { createPaymentService } from './application/payment-service.ts';
+import { createWebhookService } from './application/webhook-service.ts';
 import type { DataStore } from './application/ports/repositories.ts';
 import type { PaymentProvider } from './application/ports/payment-provider.ts';
 import type { Clock, IdGenerator, Sleeper } from './application/ports/system.ts';
@@ -8,6 +9,8 @@ import type { RetryPolicy } from './application/retry.ts';
 import { registerErrorHandler } from './http/errors.ts';
 import { registerOrderRoutes } from './http/order-routes.ts';
 import { registerPaymentRoutes } from './http/payment-routes.ts';
+import { registerWebhookRoutes } from './http/webhook-routes.ts';
+import { createHmacSignatureVerifier } from './infrastructure/hmac-signature.ts';
 
 export interface AppDeps {
   dataStore: DataStore;
@@ -17,6 +20,8 @@ export interface AppDeps {
   sleeper: Sleeper;
   random?: () => number;
   retryPolicy?: RetryPolicy;
+  /** Shared secret for verifying payment provider webhook signatures. */
+  webhookSecret: string;
   shouldLog?: boolean;
 }
 
@@ -27,10 +32,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const orderService = createOrderService(deps);
   const paymentService = createPaymentService(deps);
+  const webhookService = createWebhookService({
+    dataStore: deps.dataStore,
+    clock: deps.clock,
+    signatureVerifier: createHmacSignatureVerifier(deps.webhookSecret),
+  });
 
   app.get('/health', async () => ({ status: 'ok' }));
   registerOrderRoutes(app, orderService);
   registerPaymentRoutes(app, paymentService);
+  registerWebhookRoutes(app, webhookService);
 
   return app;
 }

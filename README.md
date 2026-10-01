@@ -19,7 +19,7 @@ npm run dev         # run from source with reload
 
 Check it's running: `curl http://127.0.0.1:3000/health` returns `{"status":"ok"}`.
 
-Configuration (environment variables): `PORT` (default `3000`), `HOST` (default `127.0.0.1`), `DATABASE_PATH` (default `kappture.db` in the working directory; migrations run on startup).
+Configuration (environment variables): `PORT` (default `3000`), `HOST` (default `127.0.0.1`), `DATABASE_PATH` (default `kappture.db` in the working directory; migrations run on startup), `WEBHOOK_SECRET` (shared secret for provider webhook signatures; an insecure development default is used, with a warning, if it isn't set).
 
 ```bash
 # Create an order (repeat the same command: same order, header idempotent-replayed: true)
@@ -61,6 +61,10 @@ _More to come._
 | Bounded retries (3 attempts, exponential back-off with jitter) on transient errors and timeouts, with the same provider idempotency key on every attempt | No retries; unbounded retries | Rides out blips without double-charging (the provider dedupes on the key) | Adds latency to the customer's request (see limitations) |
 | The provider response is recorded by re-reading the payment and running a decline through the domain rules | Overwrite the status with the response | A webhook may have already captured the payment during the call; a late decline must not undo that | Slightly more complex phase 3 |
 | One active payment (Initiated/Authorised) per order; a new attempt is allowed after Failed/Cancelled | Allow parallel payments | Prevents double charging from two devices at the same table | Split bills aren't supported |
+| **Webhook status codes:** `200` for anything handled (applied, duplicate, stale **or rejected**), `401` for a bad signature, `500` only for unexpected internal errors | `4xx` for invalid events | The status code is an instruction to the provider: retrying a malformed event can't fix it, so it's dead-lettered and acknowledged. Only a transient fault on our side is worth a retry | Rejected events need monitoring (they're queryable in `payment_events`) |
+| Each webhook is processed in **its own transaction**, including the delivery record | Shared batch or queue | One bad or failing event can never block or corrupt another order's processing; a rollback means the retry starts fresh | No batching |
+| Unauthenticated webhooks are **not stored** | Store everything | Stops anyone filling the dead-letter store | A misconfigured secret loses evidence (the 401s are visible in logs) |
+| HMAC-SHA256 over the raw body, compared in constant time | Verify the re-serialised JSON | Re-serialising can change bytes and break valid signatures | The webhook route needs its own body parser |
 | Vitest | Jest | Native TS/ESM, fast | None significant |
 | Transition rules live in one pure function (`src/domain/payment-events.ts`) returning a decision (`applied` / `duplicate` / `stale` / `rejected` + review flags) | Rules spread across services/handlers; throwing on invalid transitions | One place to reason about and test exhaustively (every state × event); expected business cases are data, not exceptions | Services must persist the decision faithfully |
 | Payments only move forward (Initiated → Authorised → Captured); backwards events are recorded as `stale` and ignored | Re-sequencing/buffering events by provider sequence number | No reliance on the provider ordering or on missing events ever arriving; simple and deterministic | We discard information from stale events (they are still stored for audit) |
@@ -78,6 +82,9 @@ _TBD_
 - **Provider retries happen inside the customer's HTTP request,** so the worst case adds back-off delay plus the adapter's timeout per attempt. In production I'd return `202` immediately and run the provider call from a background job (an outbox).
 - **Request timeouts are the provider adapter's responsibility.** The service trusts it to return `timedOut` and doesn't race its own timer.
 - **Single payment per order at a time.** No split bills or partial payments.
+- **Webhook signatures have no timestamp,** so a captured request could be replayed. Replays are harmless here (deduplicated on `eventId`), but production should use timestamped signatures with a tolerance window.
+- **A schema-invalid event followed by a corrected event with the *same* `eventId`** would treat the second as a duplicate. Real providers resend identical payloads per event.
+- **Event payload contract is assumed:** `{ eventId, type, paymentId (our reference), providerPaymentId?, amountMinor?, currency?, occurredAt? }`. A real provider's format would be mapped to this in an adapter.
 
 _More to come._
 
