@@ -27,7 +27,7 @@ All transition rules live in one pure, heavily tested place. Services only ask t
 - Every row of the transition table is covered by a test.
 
 ## Implementation notes
-- Added two flags beyond the original list, found while writing the table:
+- Two additions beyond the original list, found while writing the table:
   - `DUPLICATE_PAYMENT_CAPTURED`: a second payment is captured on an order that is already Paid or Completed (the customer was double charged). The capture is recorded, the order is unchanged, and the flag is raised.
   - The amount check applies to Failed/Cancelled events too **if** they carry an amount. A mismatching amount on any event is suspicious.
 - Mutation check: I made early captures (Initiated → Captured) be ignored, and 8 tests failed. The tests guard the key decision.

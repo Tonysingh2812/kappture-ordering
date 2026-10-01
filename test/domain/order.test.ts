@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { completeOrder } from '../../src/domain/order.js';
-import type { OrderSnapshot, OrderStatus } from '../../src/domain/types.js';
+import { completeOrder } from '../../src/domain/order.ts';
+import type { OrderSnapshot, OrderStatus } from '../../src/domain/types.ts';
 
 const order = (status: OrderStatus): OrderSnapshot => ({
   id: 'order-1',

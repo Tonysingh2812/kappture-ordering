@@ -7,7 +7,7 @@ import type {
   PaymentSnapshot,
   PaymentStatus,
   ReviewFlag,
-} from './types.js';
+} from './types.ts';
 
 const TARGET_STATUS: Record<PaymentEventType, PaymentStatus> = {
   PaymentAuthorised: 'Authorised',

@@ -1,4 +1,4 @@
-import type { OrderSnapshot, OrderStatus } from './types.js';
+import type { OrderSnapshot, OrderStatus } from './types.ts';
 
 export type CompleteOrderResult =
   | { ok: true; status: OrderStatus; changed: boolean }

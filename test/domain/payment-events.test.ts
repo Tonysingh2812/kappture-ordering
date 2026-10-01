@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPaymentEvent } from '../../src/domain/payment-events.js';
+import { applyPaymentEvent } from '../../src/domain/payment-events.ts';
 import type {
   DecisionOutcome,
   OrderSnapshot,
@@ -9,7 +9,7 @@ import type {
   PaymentSnapshot,
   PaymentStatus,
   ReviewReason,
-} from '../../src/domain/types.js';
+} from '../../src/domain/types.ts';
 
 const order = (status: OrderStatus = 'AwaitingPayment'): OrderSnapshot => ({
   id: 'order-1',
