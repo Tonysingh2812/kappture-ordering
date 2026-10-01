@@ -48,6 +48,7 @@ If a route handler contains an `if` about order or payment state, it belongs in 
 - **TypeScript only**, strict mode. Relative imports use the `.ts` extension (`import { x } from './x.ts'`); tsc rewrites them to `.js` on build.
 - **lowerCamelCase** for all variables, constants, functions, parameters and properties. No `UPPER_SNAKE_CASE`, even for module-level constants. Types and interfaces are PascalCase.
 - **Booleans** (variables, properties, parameters, result fields) start with `is`, `has`, `should` or `can`, e.g. `isOk`, `hasChanged`, `shouldLog`, `canRetry`.
+- Database columns are snake_case (SQL convention). Repositories map them to camelCase properties, so nothing outside `src/infrastructure/` sees snake_case.
 - Money is integer minor units (`amountMinor`, `totalMinor`) plus an ISO currency code. Never floats.
 - Expected failures are returned as typed results (`{ isOk: false, error: ... }`), not thrown. Throw only for genuinely unexpected errors.
 - Keep comments for the *why*. The code says the *what*.

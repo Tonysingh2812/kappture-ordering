@@ -1,6 +1,6 @@
 # KAP-01: SQLite schema, migrations and repositories
 
-**Status:** To do
+**Status:** Done
 
 ## Goal
 Durable storage for orders, payments and every event received, so the full history of transactions and states can be listed and audited.
@@ -29,3 +29,13 @@ Also:
 
 ## Acceptance criteria
 - All repository tests pass. No domain logic lives in repositories.
+
+## Implementation notes
+- **Synchronous repository ports.** better-sqlite3 transactions must be synchronous, so the ports are too. This guarantees "dedupe + state change + audit" happens in one transaction. Moving to Postgres would mean async ports (recorded as a trade-off).
+- **Dedupe in a single statement.** `recordDelivery` is `INSERT … ON CONFLICT DO UPDATE SET delivery_count = delivery_count + 1 … RETURNING *`. Repeat deliveries are counted on the same row rather than stored again. This settles the KAP-05 question: one row per event, plus a counter.
+- **Defence in depth.** `STRICT` tables and `CHECK` constraints reject fractional or negative money and unknown statuses, even if the code above has a bug. Foreign keys are on.
+- **`payment_events.payment_id` has no foreign key,** so dead-lettered events that reference unknown payments can still be stored.
+- **Optimistic concurrency.** Orders and payments have a `version` column. A stale update throws `ConcurrencyError`, which rolls the transaction back.
+- **`idempotency.release()`** was added so a request that fails unexpectedly frees its key and the client can retry.
+- **Mutation check:** I made every delivery report as the first one, and the redelivery test failed.
+- Timestamps are passed in by callers (from an injectable clock), never `CURRENT_TIMESTAMP`, so tests stay deterministic.
