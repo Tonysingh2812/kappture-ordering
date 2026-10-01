@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 
 export interface AppOptions {
-  logger?: boolean;
+  shouldLog?: boolean;
 }
 
 /**
@@ -9,7 +9,7 @@ export interface AppOptions {
  * Dependencies (database, payment provider, clock) will be injected here as tickets land.
  */
 export function buildApp(options: AppOptions = {}): FastifyInstance {
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({ logger: options.shouldLog ?? false });
 
   app.get('/health', async () => ({ status: 'ok' }));
 

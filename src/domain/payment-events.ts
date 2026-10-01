@@ -9,7 +9,7 @@ import type {
   ReviewFlag,
 } from './types.ts';
 
-const TARGET_STATUS: Record<PaymentEventType, PaymentStatus> = {
+const targetStatusByEventType: Record<PaymentEventType, PaymentStatus> = {
   PaymentAuthorised: 'Authorised',
   PaymentCaptured: 'Captured',
   PaymentFailed: 'Failed',
@@ -17,7 +17,7 @@ const TARGET_STATUS: Record<PaymentEventType, PaymentStatus> = {
 };
 
 /** Events that move money (or reserve it) must carry an amount we can match against. */
-const REQUIRES_AMOUNT: ReadonlySet<PaymentEventType> = new Set(['PaymentAuthorised', 'PaymentCaptured']);
+const eventTypesRequiringAmount: ReadonlySet<PaymentEventType> = new Set(['PaymentAuthorised', 'PaymentCaptured']);
 
 const isFailedOrCancelled = (s: PaymentStatus) => s === 'Failed' || s === 'Cancelled';
 
@@ -60,7 +60,7 @@ export function applyPaymentEvent(
     return unchanged('rejected', mismatch, [{ reason: 'AMOUNT_MISMATCH', details: mismatch }]);
   }
 
-  const target = TARGET_STATUS[event.type];
+  const target = targetStatusByEventType[event.type];
 
   if (target === payment.status) {
     return unchanged('duplicate', `Payment already ${payment.status}`);
@@ -134,7 +134,7 @@ function applyCapture(order: OrderSnapshot, payment: PaymentSnapshot): PaymentEv
 
 /** Returns a description of why the event does not confidently match the payment, or null if it does. */
 function describeAmountMismatch(payment: PaymentSnapshot, event: PaymentEvent): string | null {
-  if (REQUIRES_AMOUNT.has(event.type) && (event.amountMinor === undefined || event.currency === undefined)) {
+  if (eventTypesRequiringAmount.has(event.type) && (event.amountMinor === undefined || event.currency === undefined)) {
     return `${event.type} has no amount/currency, so it cannot be matched to payment ${payment.id}`;
   }
   if (event.amountMinor !== undefined && event.amountMinor !== payment.amountMinor) {

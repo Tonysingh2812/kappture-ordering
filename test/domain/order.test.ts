@@ -11,14 +11,14 @@ const order = (status: OrderStatus): OrderSnapshot => ({
 
 describe('completeOrder', () => {
   it('completes a paid order', () => {
-    expect(completeOrder(order('Paid'))).toEqual({ ok: true, status: 'Completed', changed: true });
+    expect(completeOrder(order('Paid'))).toEqual({ isOk: true, status: 'Completed', hasChanged: true });
   });
 
   it('is idempotent for an already completed order', () => {
-    expect(completeOrder(order('Completed'))).toEqual({ ok: true, status: 'Completed', changed: false });
+    expect(completeOrder(order('Completed'))).toEqual({ isOk: true, status: 'Completed', hasChanged: false });
   });
 
   it.each<OrderStatus>(['AwaitingPayment', 'Cancelled'])('refuses to complete an order that is %s', (status) => {
-    expect(completeOrder(order(status))).toEqual({ ok: false, error: 'ORDER_NOT_PAID', status });
+    expect(completeOrder(order(status))).toEqual({ isOk: false, error: 'ORDER_NOT_PAID', status });
   });
 });
