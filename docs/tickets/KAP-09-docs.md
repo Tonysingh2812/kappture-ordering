@@ -1,6 +1,6 @@
 # KAP-09: Final README: decisions, limitations, before production
 
-**Status:** To do
+**Status:** Done (timeboxed; see notes)
 
 ## Goal
 The deliverable README covers everything the brief asks for.
@@ -30,3 +30,6 @@ The deliverable README covers everything the brief asks for.
 
 ## Acceptance criteria
 - A reviewer can clone, run the tests and walk through the flow using only the README.
+
+## Notes (timeboxed)
+README now covers: run instructions and the scenario tester, API, approach, assumptions, design decisions, testing, known limitations, what I'd do next, before production, and use of AI tooling.

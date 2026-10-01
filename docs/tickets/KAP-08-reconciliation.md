@@ -1,6 +1,6 @@
 # KAP-08: Reconciliation of stuck payments (stretch)
 
-**Status:** To do
+**Status:** Deferred: documented in README "What I'd do next"
 
 ## Goal
 Webhooks can be lost entirely. Payments stuck in `Initiated` or `Authorised` must still be resolved.

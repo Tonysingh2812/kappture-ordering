@@ -1,6 +1,6 @@
 # KAP-10: End-to-end integration tests
 
-**Status:** To do
+**Status:** Done (timeboxed; see notes)
 
 ## Goal
 Prove that the real pieces work together: the HTTP server, the application services, the SQLite file and the fake provider, not just each piece in isolation.
@@ -22,3 +22,16 @@ Prove that the real pieces work together: the HTTP server, the application servi
 ## Acceptance criteria
 - E2E tests are documented in the README's run instructions.
 - Depends on KAP-03 to KAP-07.
+
+## Implementation notes (timeboxed)
+- `test/e2e/scenarios.e2e.test.ts` covers:
+  - happy path, including the timeline
+  - duplicate order submission
+  - duplicate payment request
+  - duplicate callback
+  - out-of-order events (early capture + stale Authorised)
+  - invalid events / bad signature / unknown payment, without blocking another order
+  - uncertain outcome (timeout, then webhook)
+  - restart durability
+- It runs a real server on port 0, a SQLite file in a temp directory, and `fetch`. The tests passed on the first run: they're acceptance tests of behaviour each ticket had already proven red → green.
+- **Not done:** the fake provider sending webhooks to the server by itself (the tests send signed webhooks as the provider would), a separate `test:e2e` script (they run as part of `npm test`), and KAP-11 coverage (that ticket is parked).

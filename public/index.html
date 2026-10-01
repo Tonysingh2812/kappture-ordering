@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kappture ordering: scenario tester</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1rem; max-width: 60rem; }
+  fieldset { margin-bottom: .75rem; }
+  input { width: 14rem; }
+  button { margin: .15rem; }
+  pre { background: #f4f4f4; padding: .5rem; white-space: pre-wrap; max-height: 28rem; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>Scenario tester</h1>
+<p>Dev tool only. Webhooks are signed in the browser with the secret below, which must match the server's <code>WEBHOOK_SECRET</code>.</p>
+
+<fieldset>
+  <legend>State</legend>
+  Order id <input id="orderId"> Payment id <input id="paymentId"><br>
+  Webhook secret <input id="secret" value="dev-webhook-secret">
+</fieldset>
+
+<fieldset>
+  <legend>1. Order (duplicate submission: click Create twice with the same key)</legend>
+  Idempotency-Key <input id="orderKey" value="order-1">
+  <button onclick="createOrder()">Create order</button>
+  <button onclick="newKey('orderKey')">New key</button>
+</fieldset>
+
+<fieldset>
+  <legend>2. Payment</legend>
+  Idempotency-Key <input id="paymentKey" value="payment-1">
+  <button onclick="pay()">Initiate payment</button>
+  <button onclick="newKey('paymentKey')">New key</button>
+</fieldset>
+
+<fieldset>
+  <legend>3. Provider webhooks (duplicate: send the same event id twice; out of order: Captured before Authorised)</legend>
+  Event id <input id="eventId" value="evt-1"> Amount (minor) <input id="amount" value="2500" style="width:6rem"><br>
+  <button onclick="hook('PaymentAuthorised')">Authorised</button>
+  <button onclick="hook('PaymentCaptured')">Captured</button>
+  <button onclick="hook('PaymentFailed')">Failed</button>
+  <button onclick="newKey('eventId')">New event id</button>
+  |
+  <button onclick="hook('PaymentCaptured', { forge: true })">Bad signature</button>
+  <button onclick="raw('{not json')">Unparseable body</button>
+</fieldset>
+
+<fieldset>
+  <legend>4. Read and finish</legend>
+  <button onclick="send('GET', '/orders/' + v('orderId'))">Get order</button>
+  <button onclick="send('GET', '/orders/' + v('orderId') + '/timeline')">Timeline</button>
+  <button onclick="send('POST', '/orders/' + v('orderId') + '/complete')">Complete</button>
+  <button onclick="send('GET', '/review')">Review queue</button>
+  <button onclick="send('GET', '/payment-events')">All provider events</button>
+  <button onclick="send('GET', '/orders')">All orders</button>
+  <button onclick="document.getElementById('log').textContent = ''">Clear log</button>
+</fieldset>
+
+<pre id="log"></pre>
+
+<script>
+const v = (id) => document.getElementById(id).value;
+const set = (id, value) => { document.getElementById(id).value = value; };
+const newKey = (id) => set(id, id.replace('Key', '').replace('Id', '') + '-' + Math.random().toString(36).slice(2, 8));
+
+async function send(method, path, headers = {}, body) {
+  const res = await fetch(path, { method, headers, body });
+  const text = await res.text();
+  let pretty = text;
+  try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+  const replayed = res.headers.get('idempotent-replayed');
+  const line = `${method} ${path} → ${res.status}${replayed ? ' (idempotent-replayed: ' + replayed + ')' : ''}\n${pretty}\n\n`;
+  const log = document.getElementById('log');
+  log.textContent = line + log.textContent;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+async function createOrder() {
+  const body = JSON.stringify({
+    venueId: 'venue-1', tableRef: 'T12', currency: 'GBP',
+    items: [{ sku: 'burger', name: 'Burger', quantity: 2, unitPriceMinor: 1250 }],
+  });
+  const json = await send('POST', '/orders', { 'content-type': 'application/json', 'idempotency-key': v('orderKey') }, body);
+  if (json?.id) set('orderId', json.id);
+}
+
+async function pay() {
+  const json = await send('POST', '/orders/' + v('orderId') + '/payments', { 'idempotency-key': v('paymentKey') });
+  if (json?.payment?.id) set('paymentId', json.payment.id);
+}
+
+async function sign(body) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(v('secret')), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
+  return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function raw(body, signature) {
+  return send('POST', '/webhooks/payments', { 'content-type': 'application/json', 'x-provider-signature': signature ?? await sign(body) }, body);
+}
+
+async function hook(type, { forge = false } = {}) {
+  const body = JSON.stringify({ eventId: v('eventId'), type, paymentId: v('paymentId'), amountMinor: Number(v('amount')), currency: 'GBP' });
+  return raw(body, forge ? 'forged' : undefined);
+}
+</script>
+</body>
+</html>

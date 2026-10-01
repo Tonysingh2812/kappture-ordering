@@ -19,3 +19,23 @@ describe('GET /health', () => {
     expect(res.json()).toEqual({ status: 'ok' });
   });
 });
+
+describe('GET /', () => {
+  let testApp: TestApp;
+
+  beforeEach(async () => {
+    testApp = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await testApp.app.close();
+  });
+
+  it('serves the scenario tester page', async () => {
+    const res = await testApp.app.inject({ method: 'GET', url: '/' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('Scenario tester');
+  });
+});

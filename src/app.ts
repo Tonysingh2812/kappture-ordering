@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createHistoryService } from './application/history-service.ts';
 import { createOrderService } from './application/order-service.ts';
@@ -45,6 +46,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get('/health', async () => ({ status: 'ok' }));
+  // Dev-only scenario tester (not part of the service's API); resolves from both src/ and dist/.
+  app.get('/', async (_request, reply) =>
+    reply.type('text/html').send(readFileSync(new URL('../public/index.html', import.meta.url))),
+  );
   registerOrderRoutes(app, orderService);
   registerPaymentRoutes(app, paymentService);
   registerWebhookRoutes(app, webhookService);

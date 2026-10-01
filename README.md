@@ -2,7 +2,7 @@
 
 A small backend service for the core online-ordering flow: create an order, associate a payment with it, process asynchronous payment events, and keep a reliable order/payment state, including under duplicate, out-of-order, invalid and uncertain-outcome conditions.
 
-> Work in progress. Sections marked _TBD_ are filled in as tickets land (see [docs/tickets](docs/tickets/README.md)).
+> Built within a timebox. Work was tracked as tickets in [docs/tickets](docs/tickets/README.md), with one commit per ticket. Project rules for humans and AI are in [CLAUDE.md](CLAUDE.md).
 
 ## Run instructions
 
@@ -30,7 +30,9 @@ curl -i -X POST http://127.0.0.1:3000/orders \
 curl http://127.0.0.1:3000/orders/<order id>
 ```
 
-_TBD: curl walkthrough of the full flow._
+**Scenario tester (dev tool):** run `npm run dev` and open http://127.0.0.1:3000/. It's one plain HTML page with a button per scenario (duplicate submit, duplicate or out-of-order webhooks, bad signature, unparseable body, complete, review queue). It shows every raw response, and it signs webhooks in the browser with the dev secret. It isn't part of the service.
+
+**Tests:** `npm test` runs everything (unit, service, HTTP and e2e). The e2e suite (`test/e2e/`) starts a real server on a random port with a real SQLite file and uses real `fetch`.
 
 ## API
 
@@ -50,7 +52,17 @@ _TBD: curl walkthrough of the full flow._
 Errors always look like `{ "error": { "code", "message", "details"? } }`.
 
 ## Approach
-_TBD_
+1. **Domain first.** The order and payment state machines are a single pure function. It decides what each payment event means (`applied` / `duplicate` / `stale` / `rejected`, plus review flags) and never touches I/O. It's tested exhaustively: every state × event, plus the arrival-order permutations.
+2. **Application services own the use cases:** create order, initiate payment, handle webhook, complete, review, history. Idempotency, transactions and failure handling live here, so business logic is completely separate from HTTP and testable without it.
+3. **Ports and adapters.** Repositories, payment provider, signature verifier, clock, sleeper and id generator are interfaces. SQLite, the fake provider and HMAC are the adapters.
+4. **Thin HTTP layer.** Fastify routes validate the request's shape (zod), call one service and map typed results to status codes.
+5. **Every source of payment truth goes through the same rules.** The provider's response to initiation, the webhooks and (later) reconciliation all use `persistPaymentEvent`, so a late or contradictory signal can never undo a capture.
+
+```
+HTTP (Fastify routes) → application services → domain (pure rules)
+                               ↓ ports
+             SQLite repositories · fake provider · HMAC · clock
+```
 
 ## Assumptions
 - **QR code:** scanning one gives the client a `venueId` and `tableRef`. QR handling itself is out of scope.
@@ -93,7 +105,18 @@ _More to come._
 _More to come._
 
 ## Testing
-_TBD_
+Built test-first: each ticket's tests were written and run red before the implementation. **245 tests:**
+| Level | What | Why |
+|---|---|---|
+| Domain | Full transition table (5 payment states × 4 events), confident matching, arrival-order permutations | The rules that matter most, tested exhaustively and fast |
+| Repository | Round trips, dedupe statement, optimistic concurrency, rollback, constraints, file persistence | The guarantees the services rely on |
+| Service | Idempotency, retries and back-off, timeouts, webhook races, dead-lettering, rollback-and-retry | Business behaviour without HTTP |
+| HTTP | Status codes, validation, headers, error bodies | The contract clients and the provider rely on |
+| E2E | One test per failure mode in the brief, the happy path, restart durability | The pieces work together over real HTTP and a real file |
+
+**Mutation checks:** for the key rules (early capture, eventId dedupe, signature check, "timeout is not failure", key reuse), I deliberately broke the code and confirmed the tests failed.
+
+**Not tested:** load or concurrency across multiple processes (single-process SQLite), the scenario tester page beyond "it is served", and a real provider.
 
 ## Known limitations
 - **No real payment provider.** `FakePaymentProvider` accepts every payment when the server runs. In tests it is scripted to decline, error, time out or throw.
@@ -105,11 +128,29 @@ _TBD_
 - **No order cancellation endpoint.** The `Cancelled` state and its rules exist in the domain (e.g. a capture on a cancelled order is flagged for refund), but cancelling is out of scope.
 - **The review queue has no authentication or "resolved by" audit.** Resolving is just a timestamp.
 - **Event payload contract is assumed:** `{ eventId, type, paymentId (our reference), providerPaymentId?, amountMinor?, currency?, occurredAt? }`. A real provider's format would be mapped to this in an adapter.
+- **The fake provider is configured in code.** The scenario tester can't simulate a provider timeout; that scenario is covered by the e2e and service tests.
+- **Single process.** SQLite with synchronous transactions serialises writes, which is why the race conditions are handled by design rather than by locks.
 
-_More to come._
+## What I'd do next (not done within the timebox)
+1. **KAP-11: device/session ID.** Scope idempotency keys per device, and soft duplicate detection for a lost key (same device + same basket within 60s → `409 POSSIBLE_DUPLICATE` with a confirm override). This was agreed **instead of device fingerprinting** (false duplicates on shared venue Wi-Fi, spoofable, PECR consent). The tests are written and the implementation is half done on branch `kap-11-device-id-wip`.
+2. **KAP-08: reconciliation.** Periodically ask the provider about payments stuck in `Initiated`/`Authorised` (lost webhooks), and apply the answer through the same `persistPaymentEvent` path.
+3. **Move the provider call out of the customer's request:** return `202` immediately and call the provider from an outbox or background worker.
 
 ## Before production
-_TBD_
+- A real provider adapter (its own timeouts, mapping of its event format), timestamped webhook signatures, and secrets from a secret manager.
+- Postgres (async ports, row locking or `SELECT … FOR UPDATE`), an outbox for fulfilment notifications, and TTL clean-up of idempotency keys.
+- Authentication: customers for their own orders, staff for listings, completion and the review queue (with a "resolved by" audit).
+- Observability: metrics and alerts on review flags, rejected or dead-lettered events, duplicates, stuck `Initiated` payments and provider latency; structured logs with a correlation id.
+- Load testing, plus a cancellation flow with automatic refunds for `CAPTURE_ON_CANCELLED_ORDER` and `DUPLICATE_PAYMENT_CAPTURED`.
 
 ## Use of AI tooling
-_TBD_
+Built with Claude Code as a pair programmer. I kept control of the decisions and the process:
+- **Decisions were mine.** I chose the answer to the "PaymentCaptured while AwaitingPayment" question (accept a confident match so the sale goes through, plus a non-blocking review flag), "Captured wins + flag" for conflicting events, SQLite for an auditable history, and a device/session ID rather than fingerprinting. The AI laid out the options and trade-offs; I chose.
+- **Process rules I set:** strict TDD (tests seen failing first), one ticket and one commit at a time, business logic separate from endpoints, naming conventions. They're written into `CLAUDE.md` so the agent follows them.
+- **What was verified rather than trusted:**
+  - every red → green step was run
+  - mutation checks on the key rules
+  - the built server was smoke-tested over real HTTP after each ticket
+  - the e2e suite runs against a real port and a real file
+- **Where verification caught problems:** wrong test assumptions (a duplicate payment idempotency key in a builder, a back-off value, a version count); two tests passing for the wrong reason (Fastify's default 404), which were tightened; and a real ordering bug in the event log (alphabetical rather than arrival order), fixed with a regression test.
+- **Scope control:** I deferred reconciliation and parked KAP-11 on a branch when time ran short, rather than leaving `main` broken.

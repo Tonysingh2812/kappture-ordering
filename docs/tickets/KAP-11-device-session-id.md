@@ -1,6 +1,6 @@
 # KAP-11: Device/session ID for idempotency scoping and soft duplicate detection
 
-**Status:** To do
+**Status:** Parked: tests written, implementation incomplete on branch `kap-11-device-id-wip`
 
 ## Goal
 Add a device-level layer on top of idempotency keys:
