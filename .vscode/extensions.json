@@ -1,0 +1,9 @@
+{
+  // VS Code offers to install these when the folder is opened.
+  "recommendations": [
+    // Run and debug individual Vitest tests from the Testing sidebar.
+    "vitest.explorer",
+    // Browse kappture.db (orders, payments, payment_events, review_flags) inside the editor.
+    "qwtel.sqlite-viewer"
+  ]
+}

@@ -6,33 +6,96 @@ A small backend service for the core online-ordering flow: create an order, asso
 
 ## Run instructions
 
-**Prerequisites:** Node.js 22+ (see `.nvmrc`). The SQLite driver (better-sqlite3) ships prebuilt binaries for common platforms.
+These steps work on **Windows and macOS**. The npm scripts are plain Node commands, with no shell-specific syntax.
 
+### Recommended editor: Visual Studio Code
+Use [Visual Studio Code](https://code.visualstudio.com/). The repo includes `.vscode/extensions.json`, so VS Code offers two extensions when you open the folder:
+- **Vitest** (`vitest.explorer`): run or debug any single test from the Testing sidebar.
+- **SQLite Viewer** (`qwtel.sqlite-viewer`): click `kappture.db` to browse the `orders`, `payments`, `payment_events` and `review_flags` tables while you try the scenarios.
+
+VS Code's built-in terminal (`` Ctrl+` `` on Windows, `` ⌃` `` on macOS) gives you the same shell commands on both platforms.
+
+### 1. Prerequisites
+- **Node.js 22 LTS or newer** (`.nvmrc` pins 22). Install it from [nodejs.org](https://nodejs.org/), or use a version manager: `nvm install 22` with [nvm](https://github.com/nvm-sh/nvm) on macOS, or [nvm-windows](https://github.com/coreybutler/nvm-windows) on Windows.
+- **Git.**
+- Check with `node --version` (v22 or newer) and `npm --version`.
+
+The SQLite driver (`better-sqlite3`) downloads a prebuilt binary for Windows and macOS (Intel and Apple Silicon), so normally no compiler is needed. If `npm install` fails while building `better-sqlite3`:
+- **macOS:** run `xcode-select --install`, then `npm install` again.
+- **Windows:** install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload, then `npm install` again.
+
+### 2. Get the code and install
 ```bash
+git clone https://github.com/Tonysingh2812/kappture-ordering.git
+cd kappture-ordering
 npm install
-npm test            # run the test suite
+```
+(The repository is private; you need access to clone it.) Then open the folder in VS Code (**File → Open Folder…**, or `code .`).
+
+### 3. Run the tests
+```bash
+npm test            # all tests: domain, repository, service, HTTP and e2e
 npm run typecheck   # strict TypeScript check
+npm run test:watch  # re-run tests on save
+```
+The e2e suite (`test/e2e/`) starts a real server on a random port with a real SQLite file in a temp folder and calls it with real `fetch`. Nothing to set up.
+
+### 4. Run the service
+```bash
+npm run dev         # run from source, restarts on save (recommended while exploring)
+# or
 npm run build       # compile to dist/
-npm start           # run the compiled server on http://127.0.0.1:3000
-npm run dev         # run from source with reload
+npm start           # run the compiled server
+```
+The server listens on **http://127.0.0.1:3000**. Open http://127.0.0.1:3000/health in a browser; it should show `{"status":"ok"}`. Stop it with `Ctrl+C`.
+
+### 5. Try the scenarios (easiest: the scenario tester page)
+With the server running, open **http://127.0.0.1:3000/** in a browser. This page is the recommended way to explore on any OS, with no curl quoting differences to worry about. Work through it top to bottom:
+1. **Create order:** click it twice with the same key, and the second response says `idempotent-replayed: true`.
+2. **Initiate payment.**
+3. **Send webhooks:**
+   - **Captured** then **Authorised** shows out of order: the order becomes Paid with a review flag, and the late Authorised is `stale`.
+   - The **same event id twice** is a duplicate.
+   - **Bad signature** gets `401`.
+   - **Unparseable body** is dead-lettered.
+4. **Get order**, **Timeline**, **Review queue** and **Complete** show the results.
+
+Every raw response is logged on the page. Webhooks are signed in the browser with the secret in the page's "Webhook secret" box, which must match the server's `WEBHOOK_SECRET` (the default matches).
+
+To start again from an empty database, stop the server and delete `kappture.db` (plus `kappture.db-wal` and `kappture.db-shm` if present). It's recreated on the next start.
+
+### Configuration (environment variables, all optional)
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `HOST` | `127.0.0.1` | Bind address |
+| `DATABASE_PATH` | `kappture.db` (in the folder you start from) | SQLite file; migrations run on startup |
+| `WEBHOOK_SECRET` | `dev-webhook-secret` (logs a warning) | Shared secret for provider webhook signatures |
+
+How to set one depends on the shell:
+```bash
+# macOS / Linux (bash, zsh)
+PORT=3001 npm run dev
+```
+```powershell
+# Windows PowerShell (VS Code's default terminal on Windows)
+$env:PORT = "3001"; npm run dev
+```
+```bat
+:: Windows Command Prompt
+set "PORT=3001" && npm run dev
 ```
 
-Check it's running: `curl http://127.0.0.1:3000/health` returns `{"status":"ok"}`.
-
-Configuration (environment variables): `PORT` (default `3000`), `HOST` (default `127.0.0.1`), `DATABASE_PATH` (default `kappture.db` in the working directory; migrations run on startup), `WEBHOOK_SECRET` (shared secret for provider webhook signatures; an insecure development default is used, with a warning, if it isn't set).
-
+### Optional: calling the API from the command line
+The page above covers every scenario. If you prefer curl, these commands are for **macOS Terminal or Git Bash on Windows**. In PowerShell, `curl` is an alias for a different command; use `curl.exe` and escape the JSON quotes, or just use the page.
 ```bash
-# Create an order (repeat the same command: same order, header idempotent-replayed: true)
+# Create an order (repeat it: same order, header idempotent-replayed: true)
 curl -i -X POST http://127.0.0.1:3000/orders \
   -H 'content-type: application/json' -H 'idempotency-key: demo-1' \
   -d '{"venueId":"venue-1","tableRef":"T12","items":[{"sku":"burger","name":"Burger","quantity":2,"unitPriceMinor":1250}],"currency":"GBP"}'
 
 curl http://127.0.0.1:3000/orders/<order id>
 ```
-
-**Scenario tester (dev tool):** run `npm run dev` and open http://127.0.0.1:3000/. It's one plain HTML page with a button per scenario (duplicate submit, duplicate or out-of-order webhooks, bad signature, unparseable body, complete, review queue). It shows every raw response, and it signs webhooks in the browser with the dev secret. It isn't part of the service.
-
-**Tests:** `npm test` runs everything (unit, service, HTTP and e2e). The e2e suite (`test/e2e/`) starts a real server on a random port with a real SQLite file and uses real `fetch`.
 
 ## API
 
