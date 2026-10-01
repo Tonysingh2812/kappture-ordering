@@ -13,7 +13,7 @@ Work is split into tickets so progress is easy to track and each one lands as it
 |---|---|---|
 | [KAP-00](KAP-00-scaffold.md) | Project scaffold and tooling | Done |
 | [KAP-01](KAP-01-database.md) | SQLite schema, migrations and repositories | To do |
-| [KAP-02](KAP-02-domain-state-machines.md) | Order and payment state machines (pure domain) | To do |
+| [KAP-02](KAP-02-domain-state-machines.md) | Order and payment state machines (pure domain) | Done |
 | [KAP-03](KAP-03-create-order.md) | Create/get order API with idempotent submission | To do |
 | [KAP-04](KAP-04-initiate-payment.md) | Payment initiation, provider port and uncertain outcomes | To do |
 | [KAP-05](KAP-05-webhook-processing.md) | Payment webhook: verification, dedupe and isolation | To do |
