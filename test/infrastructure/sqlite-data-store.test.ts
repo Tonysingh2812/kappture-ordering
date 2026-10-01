@@ -186,6 +186,14 @@ describe('payment events (dedupe point)', () => {
     });
   });
 
+  it('keeps arrival order for events received at the same timestamp', () => {
+    store.paymentEvents.recordDelivery(delivery({ providerEventId: 'zz-first', receivedAt: t0 }));
+    store.paymentEvents.recordDelivery(delivery({ providerEventId: 'aa-second', receivedAt: t0 }));
+
+    expect(store.paymentEvents.listByPaymentId('pay-1').map((e) => e.providerEventId)).toEqual(['zz-first', 'aa-second']);
+    expect(store.paymentEvents.list().map((e) => e.providerEventId)).toEqual(['zz-first', 'aa-second']);
+  });
+
   it('lists events by payment and by outcome', () => {
     store.paymentEvents.recordDelivery(delivery({ providerEventId: 'e1', receivedAt: t0 }));
     store.paymentEvents.recordDelivery(delivery({ providerEventId: 'e2', receivedAt: t1 }));

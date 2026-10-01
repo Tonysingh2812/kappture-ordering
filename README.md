@@ -32,6 +32,23 @@ curl http://127.0.0.1:3000/orders/<order id>
 
 _TBD: curl walkthrough of the full flow._
 
+## API
+
+| Method and path | Purpose | Main responses |
+|---|---|---|
+| `POST /orders` | Create an order (requires an `Idempotency-Key` header) | `201`; replay `201` + `Idempotent-Replayed: true`; `400`; `409` in progress; `422` key reused |
+| `GET /orders/:id` | Order with payments, audit events and review flags | `200`, `404` |
+| `POST /orders/:id/payments` | Start a payment (requires an `Idempotency-Key` header) | `202` accepted/pending, `402` declined, `404`, `409`, `422` |
+| `POST /webhooks/payments` | Provider events (signed with `X-Provider-Signature`) | `200` handled (incl. duplicate/stale/rejected), `401`, `500` |
+| `POST /orders/:id/complete` | Hand a paid order to fulfilment (idempotent) | `200`, `404`, `409` not paid |
+| `GET /orders?status=&limit=&offset=` | List orders | `200`, `400` |
+| `GET /payments?status=&limit=&offset=` | List payments | `200`, `400` |
+| `GET /payment-events?outcome=&limit=&offset=` | Every provider event received; `?outcome=rejected` is the dead-letter view | `200`, `400` |
+| `GET /orders/:id/timeline` | Audit events and provider events merged in time order | `200`, `404` |
+| `GET /review` / `POST /review/:id/resolve` | Non-blocking review queue | `200`, `400`, `404` |
+
+Errors always look like `{ "error": { "code", "message", "details"? } }`.
+
 ## Approach
 _TBD_
 

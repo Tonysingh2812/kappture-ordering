@@ -1,4 +1,4 @@
-import { validateNewOrder, type NewOrderItem } from '../domain/order.ts';
+import { completeOrder as decideCompletion, validateNewOrder, type NewOrderItem } from '../domain/order.ts';
 import type { OrderEventRecord, OrderRecord, PaymentRecord, ReviewFlagRecord } from './ports/records.ts';
 import type { DataStore } from './ports/repositories.ts';
 import type { Clock, IdGenerator } from './ports/system.ts';
@@ -31,6 +31,11 @@ export interface OrderDetails {
 }
 
 export type GetOrderResult = { isOk: true; details: OrderDetails } | { isOk: false; error: 'ORDER_NOT_FOUND' };
+
+export type CompleteOrderServiceResult =
+  | { isOk: true; order: OrderView; hasChanged: boolean }
+  | { isOk: false; error: 'ORDER_NOT_FOUND' }
+  | { isOk: false; error: 'ORDER_NOT_PAID'; orderStatus: string };
 
 export interface OrderServiceDeps {
   dataStore: DataStore;
@@ -103,6 +108,27 @@ export function createOrderService({ dataStore, clock, idGenerator }: OrderServi
         const view = toOrderView(order);
         dataStore.idempotency.complete(createOrderScope, idempotencyKey, JSON.stringify(view));
         return { isOk: true, order: view, isReplay: false };
+      });
+    },
+
+    /** Hands a paid order to fulfilment. Idempotent: completing a Completed order changes nothing. */
+    completeOrder(orderId: string): CompleteOrderServiceResult {
+      return dataStore.runInTransaction((): CompleteOrderServiceResult => {
+        const order = dataStore.orders.findById(orderId);
+        if (!order) return { isOk: false, error: 'ORDER_NOT_FOUND' };
+
+        const decision = decideCompletion(order);
+        if (!decision.isOk) return { isOk: false, error: decision.error, orderStatus: decision.status };
+        if (!decision.hasChanged) return { isOk: true, order: toOrderView(order), hasChanged: false };
+
+        const now = clock.now();
+        const version = dataStore.orders.updateStatus(order.id, decision.status, order.version, now);
+        dataStore.orderEvents.append({ orderId: order.id, type: 'OrderCompleted', data: {}, occurredAt: now });
+        return {
+          isOk: true,
+          order: toOrderView({ ...order, status: decision.status, version, updatedAt: now }),
+          hasChanged: true,
+        };
       });
     },
 

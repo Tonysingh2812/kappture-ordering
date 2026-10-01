@@ -50,5 +50,5 @@ Listed for before production: confirm with the provider's API, or reconcile asyn
   - Captured → Failed
   - capture on a cancelled order
   - all 6 permutations of Authorised/Captured/Failed
-- **Mutation check:** I made early captures be ignored, and 4 HTTP acceptance tests failed (plus 8 domain tests, from KAP-02).
+- **Mutation check:** I made early captures be ignored, and 4 HTTP acceptance tests failed. Only this file was run for the check; KAP-02's domain tests catch the same mutation, as shown in that ticket.
 - No cancel endpoint is in scope. The cancelled-order test sets the status directly in the store; noted in the README limitations.

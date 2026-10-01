@@ -164,3 +164,43 @@ describe('getOrder', () => {
     expect(service.getOrder('missing')).toEqual({ isOk: false, error: 'ORDER_NOT_FOUND' });
   });
 });
+
+describe('completeOrder', () => {
+  const createPaidOrder = () => {
+    service.createOrder(input());
+    const order = store.orders.findById('ord_1')!;
+    store.orders.updateStatus('ord_1', 'Paid', order.version, clock.now());
+  };
+
+  it('completes a paid order and records OrderCompleted', () => {
+    createPaidOrder();
+    clock.advanceMs(60_000);
+
+    const result = service.completeOrder('ord_1');
+
+    expect(result).toMatchObject({ isOk: true, hasChanged: true, order: { id: 'ord_1', status: 'Completed' } });
+    expect(store.orders.findById('ord_1')).toMatchObject({ status: 'Completed', updatedAt: clock.now() });
+    expect(store.orderEvents.listByOrderId('ord_1').at(-1)).toMatchObject({ type: 'OrderCompleted', occurredAt: clock.now() });
+  });
+
+  it('is idempotent: completing again changes nothing and records no second event', () => {
+    createPaidOrder();
+    service.completeOrder('ord_1');
+
+    const again = service.completeOrder('ord_1');
+
+    expect(again).toMatchObject({ isOk: true, hasChanged: false, order: { status: 'Completed' } });
+    expect(store.orderEvents.listByOrderId('ord_1').filter((e) => e.type === 'OrderCompleted')).toHaveLength(1);
+  });
+
+  it('refuses to complete an order that has not been paid', () => {
+    service.createOrder(input());
+
+    expect(service.completeOrder('ord_1')).toEqual({ isOk: false, error: 'ORDER_NOT_PAID', orderStatus: 'AwaitingPayment' });
+    expect(store.orders.findById('ord_1')).toMatchObject({ status: 'AwaitingPayment' });
+  });
+
+  it('reports an unknown order', () => {
+    expect(service.completeOrder('missing')).toEqual({ isOk: false, error: 'ORDER_NOT_FOUND' });
+  });
+});

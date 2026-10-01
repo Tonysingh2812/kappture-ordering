@@ -198,13 +198,13 @@ export function createPaymentEventRepository(db: Database.Database): PaymentEven
     listByPaymentId(paymentId) {
       return (
         db
-          .prepare('SELECT * FROM payment_events WHERE payment_id = ? ORDER BY first_received_at, provider_event_id')
+          .prepare('SELECT * FROM payment_events WHERE payment_id = ? ORDER BY first_received_at, rowid')
           .all(paymentId) as Row[]
       ).map(toPaymentEvent);
     },
 
     list(options = {}) {
-      return listQuery(db, 'payment_events', 'outcome', 'first_received_at, provider_event_id', options).map(
+      return listQuery(db, 'payment_events', 'outcome', 'first_received_at, rowid', options).map(
         toPaymentEvent,
       );
     },

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { createHistoryService } from './application/history-service.ts';
 import { createOrderService } from './application/order-service.ts';
 import { createPaymentService } from './application/payment-service.ts';
 import { createReviewService } from './application/review-service.ts';
@@ -8,6 +9,7 @@ import type { PaymentProvider } from './application/ports/payment-provider.ts';
 import type { Clock, IdGenerator, Sleeper } from './application/ports/system.ts';
 import type { RetryPolicy } from './application/retry.ts';
 import { registerErrorHandler } from './http/errors.ts';
+import { registerHistoryRoutes } from './http/history-routes.ts';
 import { registerOrderRoutes } from './http/order-routes.ts';
 import { registerPaymentRoutes } from './http/payment-routes.ts';
 import { registerReviewRoutes } from './http/review-routes.ts';
@@ -35,6 +37,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const orderService = createOrderService(deps);
   const paymentService = createPaymentService(deps);
   const reviewService = createReviewService(deps);
+  const historyService = createHistoryService(deps);
   const webhookService = createWebhookService({
     dataStore: deps.dataStore,
     clock: deps.clock,
@@ -46,6 +49,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerPaymentRoutes(app, paymentService);
   registerWebhookRoutes(app, webhookService);
   registerReviewRoutes(app, reviewService);
+  registerHistoryRoutes(app, historyService, orderService);
 
   return app;
 }
